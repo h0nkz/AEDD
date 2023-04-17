@@ -1,0 +1,174 @@
+---
+title: "Final Project - Análise exploratória de dados"
+author: "Henrique C. Pasinato"
+date: "2023-04-15"
+output: html_document
+---
+
+## Importando bibliotecas
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(dlookr)
+library(summarytools)
+library(readxl)
+library(knitr)
+library(data.table)
+library(ggpubr)
+library(corrplot)
+library(shiny)
+library(kableExtra)
+library(mice)
+```
+
+
+## Mudando diretório:
+
+```{r mudando o diretorio}
+setwd("/Users/hpasi/OneDrive/Área de Trabalho/ANÁLISE EXPL. DE DADOS/Projeto final")
+```
+
+
+## Chamando a base de dados:
+Base escolhida devido a negativa por parte da empresa em liberar histórico de venda 2022.
+
+```{r pressure}
+df <- readxl::read_excel(file.choose(setwd))
+```
+
+
+## Selecionando variáveis de interesse:
+
+```{r}
+df_gdp <-df[df$country %in% c("Brazil", "Cuba", "Japan", "Italy"), ]
+```
+
+
+## Descrição - Média, Quantis e St.Deviation
+Descrição analítica GDP (PIB) per capita
+
+```{r}
+df_gdp %>% dplyr::select(log_gdppc) %>% summarytools::descr() %>% kbl(caption = "Estatísticas Descritivas da variável Real GDP per capita") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+
+## Scatter plot das variáveis
+
+Nota-se que o um melhor GDP per Capita condiz com melhor educação e países de população mais antiga como Japão e Itália.
+
+```{r, warning=FALSE}
+df_gdp %>% ggplot(aes(x = log_gdppc, y = log_pop)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('População')
+
+df_gdp %>% ggplot(aes(x = log_gdppc, y = educ)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('Educação')
+
+df_gdp %>% ggplot(aes(x = log_gdppc, y = dem_ind)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('Index de Democracia')
+
+df_gdp %>% ggplot(aes(x = log_gdppc, y = age_median)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('Média de idade')
+```
+
+
+## Sobre a normalidade das variáveis:
+Distribuição normal é caracterizada por uma curva em forma de sino onde, a maioria dos valores se concentra perto da média, e a proporção de valores que estão a uma certa distância do centro segue o padrão da regra empírica.
+
+No caso desta base em seu formato pré tratamento de NaN, não nos aproximamos de uma normal.
+
+```{r, warning=FALSE}
+df_gdp %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x=log_gdppc))+geom_histogram(aes(y = after_stat(density)) ,bins = 5, fill = 'orange') + xlab('GDP per Capita') + ylab('Densidade de Frequência') + geom_vline(xintercept=c(median(df_gdp$log_gdppc), mean(df_gdp$log_gdppc))) + annotate("text", x=median(df_gdp$log_gdppc) + 0.3, y=0.05, label="Mediana", angle=90) + annotate("text", x=mean(df_gdp$log_gdppc) + 0.3, y=0.05, label="Média", angle=90) + geom_density(linetype = 2) + theme_classic()
+
+df_gdp %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x=log_gdppc))+geom_histogram(aes(y = after_stat(density)) ,bins = 5, fill = 'green') + xlab('GDP per Capita') + ylab('Densidade de Frequência') + geom_vline(xintercept=c(median(df_gdp$log_gdppc), mean(df_gdp$log_gdppc))) + annotate("text", x=median(df_gdp$log_gdppc) + 0.3, y=0.05, label="Mediana", angle=90) + annotate("text", x=mean(df_gdp$log_gdppc) + 0.3, y=0.05, label="Média", angle=90) + geom_density(linetype = 2) + theme_classic()
+```
+
+- Crie um gráfico Q-Q para cada variável de sua base de dados. (use as funções presentes no pacote ggpubr);
+```{r, warning=FALSE}
+df_gdp %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
+
+df_gdp %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
+```
+
+- Execute um teste de normalidade Shapiro-Wilk;
+
+```{r}
+perOne <- df_gdp %>% dplyr::filter(year <= "1980")
+shapiro.test(perOne$log_gdppc)
+
+perTwo <- df_gdp %>% dplyr::filter(year >= "1985")
+shapiro.test(perTwo$log_gdppc)
+```
+
+
+## Qualidade de dados tem sido um dos temas mais abordados nos projetos de estruturação em data analytics, sendo um dos principais indicadores do nível de maturidade das organizações. Um dos problemas mais comuns de qualidade é relacionado à completude de dados. Em suas palavras, como é definido completude? Qual o impacto em uma análise exploratória de dados?
+Um database é completo quando todas as informações importantes estão presentes e foram devidamente registradas, facilitando análises de maior acurácia.
+Dados incompletos podem levar a conclusões erradas e à rejeição de hipóteses que podem ser verdadeiras, nublando a descoberta cientifica.
+
+## Qual a completude para cada uma das variáveis do seu banco de dados?
+
+Nota-se que temos NaN presentes em todos países quanto a sua população no ano de 1960, logo trata-se de dados faltantes não aleatorios (MNAR) e no caso de Cuba constam missings em relaçao ao GDP e Educação não estando relacionados a nenhuma característica específica do país.
+```{r}
+summary(df_gdp)
+```
+
+## Conferindo faltantes
+```{r, echo=FALSE}
+md.pattern(df_gdp)
+
+data_pop_subset <- subset(df_gdp, is.na(df_gdp$log_pop))
+data_gdp_subset <- subset(df_gdp, is.na(df_gdp$log_gdppc))
+data_educ_subset <- subset(df_gdp, is.na(df_gdp$educ))
+```
+
+
+## Realize uma operação de imputação de dados usando o pacote MICE.
+```{r, warning=FALSE, results='hide'}
+imputed_data <- mice(df_gdp, method = "pmm", m = 5, maxit = 20, seed=123)
+
+
+finished_imputed_data <- complete(imputed_data, mean(1:5))
+```
+
+
+## Scatter após preenchimento de dados
+
+```{r, warning=FALSE}
+finished_imputed_data %>% ggplot(aes(x = log_gdppc, y = log_pop)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('População')
+
+finished_imputed_data %>% ggplot(aes(x = log_gdppc, y = educ)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('Educação')
+
+finished_imputed_data %>% ggplot(aes(x = log_gdppc, y = dem_ind)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('Index de Democracia')
+
+finished_imputed_data %>% ggplot(aes(x = log_gdppc, y = age_median)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('Média de idade')
+```
+
+## Histograma após preenchimendo de dados
+
+Ficou estranho, provávelmente errei em algo do imput mas não sei identificar no momento.
+```{r, warning=FALSE}
+finished_imputed_data %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x=log_gdppc))+geom_histogram(aes(y = after_stat(density)) ,bins = 4, fill = 'orange') + xlab('GDP per Capita') + ylab('Densidade de Frequência') + geom_vline(xintercept=c(median(finished_imputed_data$log_gdppc), mean(finished_imputed_data$log_gdppc))) + annotate("text", x=median(finished_imputed_data$log_gdppc) + 0.3, y=0.05, label="Mediana", angle=90) + annotate("text", x=mean(finished_imputed_data$log_gdppc) + 0.3, y=0.05, label="Média", angle=90) + geom_density(linetype = 2) + theme_classic()
+
+finished_imputed_data %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x=log_gdppc))+geom_histogram(aes(y = after_stat(density)) ,bins = 4, fill = 'green') + xlab('GDP per Capita') + ylab('Densidade de Frequência') + geom_vline(xintercept=c(median(finished_imputed_data$log_gdppc), mean(finished_imputed_data$log_gdppc))) + annotate("text", x=median(finished_imputed_data$log_gdppc) + 0.3, y=0.05, label="Mediana", angle=90) + annotate("text", x=mean(finished_imputed_data$log_gdppc) + 0.3, y=0.05, label="Média", angle=90) + geom_density(linetype = 2) + theme_classic()
+```
+
+## QQ Plot
+
+```{r, warning=FALSE}
+finished_imputed_data %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
+
+finished_imputed_data %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
+```
+
+```{r}
+perOne <- finished_imputed_data %>% dplyr::filter(year <= "1980")
+shapiro.test(perOne$log_gdppc)
+
+perTwo <- finished_imputed_data %>% dplyr::filter(year >= "1985")
+shapiro.test(perTwo$log_gdppc)
+```
+
+
+
+
+
+
+
+
+
