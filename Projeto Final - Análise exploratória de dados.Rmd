@@ -53,9 +53,22 @@ df_gdp %>% dplyr::select(log_gdppc) %>% summarytools::descr() %>% kbl(caption = 
 ```
 
 
-## Scatter plot das variáveis
+## Scatter pré preenchimento de dados
 
 Nota-se que o um melhor GDP per Capita condiz com melhor educação e países de população mais antiga como Japão e Itália.
+
+```{r}
+
+class(df_gdp)
+
+matriz_dados <- as.matrix(df_gdp[, sapply(df_gdp, is.numeric)])
+
+matriz_correlacao <- cor(matriz_dados)
+
+corrplot(matriz_correlacao, method = "color", hc.order=TRUE, type="lower")
+
+```
+
 
 ```{r, warning=FALSE}
 df_gdp %>% ggplot(aes(x = log_gdppc, y = log_pop)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('População')
@@ -80,6 +93,13 @@ df_gdp %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x=log_gdppc))+geom_histo
 ```
 
 - Crie um gráfico Q-Q para cada variável de sua base de dados. (use as funções presentes no pacote ggpubr);
+
+Razoavelmente normal a distribuição da base em sua variável objetivo.
+```{r}
+qqnorm(df_gdp$log_gdppc, pch = 1, frame = FALSE)
+qqline(df_gdp$log_gdppc, col = "purple", lwd = 2)
+```
+
 ```{r, warning=FALSE}
 df_gdp %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
 
@@ -88,6 +108,7 @@ df_gdp %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x = as.factor(country)))
 
 - Execute um teste de normalidade Shapiro-Wilk;
 
+Não há evidência suficiente para concluir que a amostra de dados não segue uma distribuição normal. No entanto, como o valor de W não é próximo de 1, é possível que os dados possam estar um pouco desviados de uma distribuição normal, assim como demonstrado no Q-Qplot
 ```{r}
 perOne <- df_gdp %>% dplyr::filter(year <= "1980")
 shapiro.test(perOne$log_gdppc)
@@ -129,6 +150,17 @@ finished_imputed_data <- complete(imputed_data, mean(1:5))
 
 ## Scatter após preenchimento de dados
 
+```{r}
+class(df_gdp)
+
+matriz_dados <- as.matrix(finished_imputed_data[, sapply(finished_imputed_data, is.numeric)])
+
+matriz_correlacao <- cor(matriz_dados)
+
+corrplot(matriz_correlacao, method = "color", type="lower")
+
+```
+
 ```{r, warning=FALSE}
 finished_imputed_data %>% ggplot(aes(x = log_gdppc, y = log_pop)) +geom_point() + facet_wrap(~country) + stat_cor(method="pearson") + xlab('GDP per Capita') + ylab('População')
 
@@ -148,13 +180,13 @@ finished_imputed_data %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x=log_gdp
 finished_imputed_data %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x=log_gdppc))+geom_histogram(aes(y = after_stat(density)) ,bins = 4, fill = 'green') + xlab('GDP per Capita') + ylab('Densidade de Frequência') + geom_vline(xintercept=c(median(finished_imputed_data$log_gdppc), mean(finished_imputed_data$log_gdppc))) + annotate("text", x=median(finished_imputed_data$log_gdppc) + 0.3, y=0.05, label="Mediana", angle=90) + annotate("text", x=mean(finished_imputed_data$log_gdppc) + 0.3, y=0.05, label="Média", angle=90) + geom_density(linetype = 2) + theme_classic()
 ```
 
-## QQ Plot
-
 ```{r, warning=FALSE}
 finished_imputed_data %>% dplyr::filter(year <= "1980") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
 
 finished_imputed_data %>% dplyr::filter(year >= "1985") %>% ggplot(aes(x = as.factor(country))) + geom_boxplot(aes(y = log_gdppc)) + xlab('Country') + ylab('GDP per Capita')
 ```
+
+O p-valor é menor que 0,05 em um dos resultados e muito próximo de 0,05 no outro, sugerindo que há evidência suficiente para rejeitar a hipótese nula de normalidade em uma das amostras e sugerir fortemente desvio da normalidade na outra.
 
 ```{r}
 perOne <- finished_imputed_data %>% dplyr::filter(year <= "1980")
@@ -164,6 +196,9 @@ perTwo <- finished_imputed_data %>% dplyr::filter(year >= "1985")
 shapiro.test(perTwo$log_gdppc)
 ```
 
+## GITHUB Repository
+
+Para acessar o código-fonte do projeto, visite [o repositório no GitHub](https://github.com/h0nkz/AEDD.git).
 
 
 
